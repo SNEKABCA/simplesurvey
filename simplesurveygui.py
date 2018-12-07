@@ -131,6 +131,10 @@ class PositionTest(QtWidgets.QWidget):
         else:
             self.mark_altitude = self.mark_pos.coordinate().altitude()
 
+    @Slot(str)
+    def on_source_label_linkActivated(self, link):
+        print ("clicked on link %s" % link)
+
     @Slot(bool)
     def on_units_metres_toggled(self, state):
         self.metric = state
@@ -200,6 +204,7 @@ class PositionTest(QtWidgets.QWidget):
                                  (northing - self.start[0]) +
                                  (easting - self.start[1]) *
                                  (easting - self.start[1]))
+
             if self.metric:
                 self.start_distance.setText('%.3f m' % distance)
             else:
@@ -210,6 +215,13 @@ class PositionTest(QtWidgets.QWidget):
                     self.start_elevation.setText('%.2f m' % (self.altitude - self.start_altitude))
                 else:
                     self.start_elevation.setText(footinch(self.altitude - self.start_altitude))
+                if distance > 0:
+                    slope_percent = (self.altitude - self.start_altitude) / distance
+                    slope_angle = math.degrees(math.atan(slope_percent))
+                    self.start_slope.setText(u"{:.1%} or {:.1f}\u00b0".format(slope_percent,
+                                                                             slope_angle))
+                    
+
             if self.mark: #mark button has been pressed
                 (easting, northing, _, _) = utm.from_latlon(
                      position_info.coordinate().latitude(), 
@@ -254,7 +266,12 @@ class PositionTest(QtWidgets.QWidget):
                         self.mark_elevation.setText('%.2f m' % (self.altitude - self.mark_altitude))
                     else:
                         self.mark_elevation.setText(footinch(self.altitude - self.mark_altitude))
-
+                    if distance > 0:
+                        slope_percent = (self.altitude - self.mark_altitude) / distance
+                        slope_angle = math.degrees(math.atan(slope_percent))
+                        self.mark_slope.setText(u"{:.1%} or {:.1f}\u00b0".format(slope_percent,
+                                                                                 slope_angle))
+     
 
 
 
