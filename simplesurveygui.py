@@ -60,14 +60,14 @@ class PositionTest(QtWidgets.QWidget):
 
     def __init__(self, mode, qiodevice, interval, *args, **kwargs):
         super(PositionTest, self).__init__(*args, **kwargs)
-        #self.logfile = QtCore.QFile('/tmp/test.nmea')
+        self.logfile = QtCore.QFile('/tmp/test.nmea')
 
-        #self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
-        #self.nmea_source = QtPositioning.QNmeaPositionInfoSource(mode)
-        #self.nmea_source.setDevice(qiodevice)
-        #self.nmea_source.setUpdateInterval(interval)
+        self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
+        self.nmea_source = QtPositioning.QNmeaPositionInfoSource(mode)
+        self.nmea_source.setDevice(qiodevice)
+        self.nmea_source.setUpdateInterval(interval)
 
-        self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
+        #self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
 
         self.nmea_source.positionUpdated.connect(self.position_updated)
         self.nmea_source.updateTimeout.connect(self.update_timeout)
