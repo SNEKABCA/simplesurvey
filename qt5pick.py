@@ -5,7 +5,7 @@ if 'WHICH_QT' in os.environ and \
    os.environ['WHICH_QT'].lower() != "pyqt" or \
    not 'WHICH_QT' in os.environ:
     try:
-        from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools, QtPositioning, QtNetwork
+        from PySide2 import QtCore, QtGui, QtWidgets, QtUiTools, QtPositioning, QtNetwork, QtSerialPort
         from PySide2.QtCore import Slot, Signal, QMetaObject, Property
         from pyside_dynamic import UiLoader
 
@@ -21,7 +21,7 @@ if 'WHICH_QT' in os.environ and \
     except ImportError:
         USE_PYSIDE = False
 if not USE_PYSIDE:
-    from PyQt5 import QtCore, QtGui, uic, QtWidgets, QtPositioning, QtNetwork
+    from PyQt5 import QtCore, QtGui, uic, QtWidgets, QtPositioning, QtNetwork, QtSerialPort
     from PyQt5.QtCore import pyqtSlot as Slot
     from PyQt5.QtCore import pyqtSignal as Signal
     from PyQt5.QtCore import pyqtProperty as Property

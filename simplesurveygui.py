@@ -6,7 +6,7 @@ import fractions
 
 
 # load either PySide or PyQt using wrapper module
-from qt5pick import QtCore, QtGui, QtWidgets, Slot, Signal, QtPositioning, load_ui, QtNetwork
+from qt5pick import QtCore, QtGui, QtWidgets, Slot, Signal, QtPositioning, load_ui, QtNetwork, QtSerialPort
 
 
 def footinch(metres):
@@ -35,7 +35,7 @@ def footinch(metres):
     else:
         frac = ''
 
-    return '%s%s%s"' % (feet, inches, frac)
+    return '%s%s%s%s"' % (sign,feet, inches, frac)
 
 def get_zone_number(lat, lon):
     """
@@ -58,19 +58,12 @@ def get_zone_number(lat, lon):
 
 class PositionTest(QtWidgets.QWidget):
 
-    def __init__(self, mode, qiodevice, interval, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         super(PositionTest, self).__init__(*args, **kwargs)
-        self.logfile = QtCore.QFile('/tmp/test.nmea')
 
-        self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
-        self.nmea_source = QtPositioning.QNmeaPositionInfoSource(mode)
-        self.nmea_source.setDevice(qiodevice)
-        self.nmea_source.setUpdateInterval(interval)
+        self.nmea_source = None
+        self.nmea_logfile = None
 
-        #self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
-
-        self.nmea_source.positionUpdated.connect(self.position_updated)
-        self.nmea_source.updateTimeout.connect(self.update_timeout)
         #nmea_source.error.connect(self.error)
 
         self.utm_zone = None
@@ -81,17 +74,23 @@ class PositionTest(QtWidgets.QWidget):
         self.altitude = None
         self.start_altitude = None
         self.metric = True
+        self.position = None
 
         load_ui('simplesurvey.ui', self)
 
-        self.nmea_source.startUpdates()
+        self.on_source_label_linkActivated('dummy')
+        self.gps_source_pick.setItemData(0,'system')
+        self.gps_source_pick.setItemData(1,'simulate')
+
+        self.on_gps_source_pick_activated(0)
+
 
     @Slot()
     def on_start_button_clicked(self):
-        self.utm_zone = 12.3828636667
+        if not self.position: return
 
-        lat = self.position.coordinate().latitude()
-        lon = self.position.coordinate().longitude()
+        lat = self.position[0]
+        lon = self.position[1]
 
         self.utm_zone = get_zone_number(lat, lon)
         print (self.utm_zone)
@@ -103,10 +102,7 @@ class PositionTest(QtWidgets.QWidget):
         self.start = (northing, easting) #TODO: switch these around throughout
 
         self.start_pos = self.position
-        if math.isnan(self.start_pos.coordinate().altitude()):
-            self.start_altitude = None
-        else:
-            self.start_altitude = self.start_pos.coordinate().altitude()
+        self.start_altitude = self.altitude
 
         self.mark = None
         self.mark_pos = None
@@ -114,10 +110,9 @@ class PositionTest(QtWidgets.QWidget):
 
     @Slot()
     def on_mark_button_clicked(self):
-        print ("mark clicked.") 
 
-        lat = self.position.coordinate().latitude()
-        lon = self.position.coordinate().longitude()
+        lat = self.position[0]
+        lon = self.position[1]
 
         (easting, northing, _, _) = utm.from_latlon(
                  lat, lon,
@@ -126,14 +121,69 @@ class PositionTest(QtWidgets.QWidget):
         self.mark = (northing, easting) #TODO: switch these around throughout
 
         self.mark_pos = self.position
-        if math.isnan(self.mark_pos.coordinate().altitude()):
-            self.mark_altitude = None
-        else:
-            self.mark_altitude = self.mark_pos.coordinate().altitude()
+        self.mark_altitude = self.altitude
 
     @Slot(str)
     def on_source_label_linkActivated(self, link):
-        print ("clicked on link %s" % link)
+        #print ("clicked on link %s" % link)
+        ports = QtSerialPort.QSerialPortInfo.availablePorts()
+        for x in range(2,self.gps_source_pick.count()):
+            self.gps_source_pick.removeItem(x)
+
+        self.serial_ports = {}
+        for port in ports:
+            self.serial_ports[port.portName()] = port.systemLocation()
+            self.gps_source_pick.addItem(port.portName(), port.systemLocation())
+
+    #@Slot(str)
+    #def on_gps_source_pick_activated(self, port_name):
+    #    print (port_name)
+
+    @Slot(int)
+    def on_gps_source_pick_activated(self, item_number):
+        path = self.gps_source_pick.itemData(item_number)
+        if self.nmea_source:
+            del self.nmea_source
+
+        if self.nmea_logfile:
+            self.nmea_logfile.close()
+            del self.nmea_logfile
+            self.nmea_logfile = None
+
+        if path == 'system':
+            self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
+
+        elif path == 'simulate':
+            print ('simulating')
+            self.nmea_logfile = QtCore.QFile('test2.nmea')
+            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
+            self.nmea_source.setDevice(self.nmea_logfile)
+            self.nmea_source.setUpdateInterval(0)
+        else:
+            #assume serial port
+            self.nmea_source = None
+            self.tcpSocket = QtNetwork.QTcpSocket(self)
+            self.tcpSocket.error.connect(self.tcp_error)
+            self.tcpSocket.connectToHost('ltfrover.lan', 9001)
+            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
+            self.nmea_source.setDevice(self.tcpSocket)
+            self.nmea_source.setUpdateInterval(0)
+
+            return
+
+
+        self.latitude_disp.clear()
+        self.longitude_disp.clear()
+        self.altitude_disp.clear()
+        self.heading_disp.clear()
+        self.nmea_source.positionUpdated.connect(self.position_updated)
+        self.nmea_source.updateTimeout.connect(self.update_timeout)
+        self.nmea_source.startUpdates()
+
+    @Slot(QtNetwork.QAbstractSocket.SocketError)
+    def tcp_error(self, socketerror):
+        print ("Socket erred out.")
+        print (socketerror)
 
     @Slot(bool)
     def on_units_metres_toggled(self, state):
@@ -168,7 +218,8 @@ class PositionTest(QtWidgets.QWidget):
         #if position_info.hasAttribute(position_info.GroundSpeed):
         #    print (position_info.attribute(position_info.GroundSpeed) * 1.61)
 
-        self.position = position_info
+        self.position = (position_info.coordinate().latitude(),
+                         position_info.coordinate().longitude())
 
         if self.utm_zone: #start button has been pressed
             (easting, northing, _, _) = utm.from_latlon(
@@ -188,7 +239,7 @@ class PositionTest(QtWidgets.QWidget):
             else: deltae_dir = "East"
 
             if self.metric:
-                self.start_northing.setText("%.3f m %s" % (deltan,deltae_dir))
+                self.start_northing.setText("%.3f m %s" % (deltan,deltan_dir))
                 self.start_easting.setText('%.3f m %s' % (deltae,deltae_dir))
             else:
                 self.start_northing.setText('%s %s' % (footinch(deltan), deltan_dir))
@@ -240,7 +291,7 @@ class PositionTest(QtWidgets.QWidget):
                 else: deltae_dir = "East"
 
                 if self.metric:
-                    self.mark_northing.setText("%.3f m %s" % (deltan,deltae_dir))
+                    self.mark_northing.setText("%.3f m %s" % (deltan,deltan_dir))
                     self.mark_easting.setText('%.3f m %s' % (deltae,deltae_dir))
                 else:
                     self.mark_northing.setText('%s %s' % (footinch(deltan), deltan_dir))
@@ -286,9 +337,8 @@ class PositionTest(QtWidgets.QWidget):
 if __name__ == "__main__":
     import signal
     app = QtWidgets.QApplication(sys.argv)
-    nmea = QtCore.QFile('test1.nmea')
     #t = PositionTest(QtPositioning.QNmeaPositionInfoSource.RealTimeMode, nmea, 500)
-    t = PositionTest(QtPositioning.QNmeaPositionInfoSource.SimulationMode, nmea, 0)
+    t = PositionTest()
 
     def ctrl_break(signum, frame):
         t.close()

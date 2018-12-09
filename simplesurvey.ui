@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>390</width>
-    <height>419</height>
+    <height>433</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -263,7 +263,7 @@
         </widget>
        </item>
        <item row="1" column="2">
-        <widget class="QComboBox" name="comboBox">
+        <widget class="QComboBox" name="gps_source_pick">
          <item>
           <property name="text">
            <string>System location services</string>
