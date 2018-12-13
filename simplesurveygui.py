@@ -169,7 +169,6 @@ class PositionTest(QtWidgets.QWidget):
             self.nmea_source.setDevice(self.tcpSocket)
             self.nmea_source.setUpdateInterval(0)
 
-            return
 
 
         self.latitude_disp.clear()
@@ -232,10 +231,14 @@ class PositionTest(QtWidgets.QWidget):
 
             deltan = (northing - self.start[0])
             deltae = (easting - self.start[1])
-            if deltan < 0: deltan_dir = "South"
+            if deltan < 0: 
+                deltan_dir = "South"
+                deltan = -deltan
             else: deltan_dir = "North"
 
-            if deltae < 0: deltae_dir = "West"
+            if deltae < 0: 
+                deltae_dir = "West"
+                deltae = -deltae
             else: deltae_dir = "East"
 
             if self.metric:
@@ -284,10 +287,14 @@ class PositionTest(QtWidgets.QWidget):
 
                 deltan = (northing - self.mark[0])
                 deltae = (easting - self.mark[1])
-                if deltan < 0: deltan_dir = "South"
+                if deltan < 0: 
+                    deltan_dir = "South"
+                    deltan = -deltan
                 else: deltan_dir = "North"
 
-                if deltae < 0: deltae_dir = "West"
+                if deltae < 0: 
+                    deltae_dir = "West"
+                    deltae = - deltae
                 else: deltae_dir = "East"
 
                 if self.metric:
