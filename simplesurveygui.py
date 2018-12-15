@@ -281,11 +281,17 @@ class SimpleSurveyGui(QtWidgets.QWidget):
             if not self.nmea_source: return
 
         elif path == 'simulate':
+            if not dontask or not self.settings.value('NMEA_logfile'):
+                nmea_filename = QtWidgets.QFileDialog.getOpenFileName(self,'Select NMEA Log File', 'NMEA Log Files (*.nmea *.txt *.log)')[0]
+            else:
+                nmea_filename = self.settings.value('NMEA_logfile')
+
             self._cleanup_sources()
-            self.nmea_logfile = QtCore.QFile('test2.nmea')
+            self.nmea_logfile = QtCore.QFile(nmea_filename)
             self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
             self.nmea_source.setDevice(self.nmea_logfile)
             self.nmea_source.setUpdateInterval(0)
+            self.settings.setValue('NMEA_logfile',nmea_filename)
         elif path == 'server':
             if not dontask:
                 # only ask for host and port if we're not resuming from
