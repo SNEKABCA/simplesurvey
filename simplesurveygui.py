@@ -28,7 +28,8 @@ def footinch(metres):
         metres = -metres
     else: sign = ''
 
-    feet = int(metres / 3.2808)
+    feet = int(metres * 39.3701 / 12)
+    print (feet)
     if feet:
         feet = "%d' " % feet
     else:
@@ -36,7 +37,7 @@ def footinch(metres):
 
     inches = int(metres * 39.3701) % 12
     if inches:
-        inches = '%d ' % inches
+        inches = '%d' % inches
     else:
         inches = ''
 
@@ -44,7 +45,7 @@ def footinch(metres):
     
     if decimal:
         gcd = fractions.gcd(decimal, 16)
-        frac = "%d/%d" % (decimal / gcd, 16/ gcd)
+        frac = "-%d/%d" % (decimal / gcd, 16/ gcd)
     else:
         frac = ''
 
