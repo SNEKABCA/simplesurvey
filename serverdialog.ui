@@ -24,10 +24,14 @@
    <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
-      <widget class="QLineEdit" name="lineEdit"/>
+      <widget class="QLineEdit" name="host_box"/>
      </item>
      <item>
-      <widget class="QSpinBox" name="spinBox"/>
+      <widget class="QSpinBox" name="port_spin">
+       <property name="maximum">
+        <number>65535</number>
+       </property>
+      </widget>
      </item>
     </layout>
    </item>
@@ -87,6 +91,22 @@
     <hint type="destinationlabel">
      <x>286</x>
      <y>274</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>host_box</sender>
+   <signal>returnPressed()</signal>
+   <receiver>Dialog</receiver>
+   <slot>accept()</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>112</x>
+     <y>42</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>149</x>
+     <y>55</y>
     </hint>
    </hints>
   </connection>

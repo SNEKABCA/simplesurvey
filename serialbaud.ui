@@ -22,7 +22,7 @@
     </widget>
    </item>
    <item>
-    <widget class="QComboBox" name="comboBox">
+    <widget class="QComboBox" name="speed_picker">
      <property name="editable">
       <bool>true</bool>
      </property>

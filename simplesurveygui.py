@@ -1,13 +1,26 @@
 from __future__ import division, print_function
+import sssettings
 import sys
 import math
 import utm
 import fractions
 
+"""
+Simple Survey program
+
+Copyright 2018 Michael Torrie
+torriem@gmail.com
+
+Licensed under the GPLv3
+"""
 
 # load either PySide or PyQt using wrapper module
 from qt5pick import QtCore, QtGui, QtWidgets, Slot, Signal, QtPositioning, load_ui, QtNetwork, QtSerialPort
 
+# TODO: some kind of search path for these files
+SERIAL_BAUD_UI = 'serialbaud.ui'
+SERVER_DIALOG_UI = 'serverdialog.ui'
+SIMPLE_SURVEY_UI = 'simplesurvey.ui'
 
 def footinch(metres):
     if metres < 0:
@@ -56,10 +69,72 @@ def get_zone_number(lat, lon):
 
     return (lon + 180) / 6 + 1
 
-class PositionTest(QtWidgets.QWidget):
+class SerialBaudDialog(QtWidgets.QDialog):
+    def __init__(self, *args, **kwargs):
+        super(SerialBaudDialog, self).__init__(*args, **kwargs)
+        #TODO: pull this in from qsettings
+        self._speed = 9600
+        load_ui(SERIAL_BAUD_UI, self)
+
+
+    def get_speed(self):
+        return self._speed
+
+    def set_speed(self, speed):
+        self._speed = speed
+        self.speed_picker.setCurrentText(str(speed))
+
+    speed = property(get_speed, set_speed)
+
+    @Slot(str)
+    def on_speed_picker_activated(self, speed_txt):
+        speed = int(speed_txt)
+        if speed > 0:
+            self._speed = speed
+        else:
+            QtWidgets.QMessageBox.critical(self, 'Invalid speed!','Baudrate you entered is not valid! Please pick or enter a valid speed.',QtWidgets.QMessageBox.Ok)
+            return False
+
+    @Slot(str)
+    def on_speed_picker_highlighted(self,speed_txt):
+        self._speed = int(speed_txt)
+
+class ServerDialog(QtWidgets.QDialog):
+    def __init__(self, *args, **kwargs):
+        super(ServerDialog, self).__init__(*args, **kwargs)
+        self._hostname = None
+        self._port = 0
+        load_ui(SERVER_DIALOG_UI, self)
+
+    def get_hostname(self):
+        return self._hostname
+
+    def set_hostname(self, hostname):
+        self._hostname = hostname
+        self.host_box.setText(hostname)
+
+    def get_port(self):
+        return self._port
+
+    def set_port(self, port):
+        self._port = port
+        self.port_spin.setValue(port)
+
+    hostname = property(get_hostname, set_hostname)
+    port = property(get_port, set_port)
+
+    @Slot(str)
+    def on_host_box_textChanged(self,text):
+        self._hostname = text
+
+    @Slot(int)
+    def on_port_spin_valueChanged(self,portno):
+        self._port = portno
+
+class SimpleSurveyGui(QtWidgets.QWidget):
 
     def __init__(self, *args, **kwargs):
-        super(PositionTest, self).__init__(*args, **kwargs)
+        super(SimpleSurveyGui, self).__init__(*args, **kwargs)
 
         self.nmea_source = None
         self.nmea_logfile = None
@@ -77,15 +152,64 @@ class PositionTest(QtWidgets.QWidget):
         self.start_altitude = None
         self.metric = True
         self.position = None
+        
+        self.settings = sssettings.SSSettings()
 
-        load_ui('simplesurvey.ui', self)
+        load_ui(SIMPLE_SURVEY_UI, self)
 
+
+        self.speed_dialog = SerialBaudDialog(self)
+        self.speed_dialog.hide()
+        self.speed = int(self.settings.value('serial/baud',9600))
+        self.speed_dialog.speed = self.speed
+
+        self.server_dialog = ServerDialog(self)
+        self.server_dialog.hide()
+
+        if self.settings.value('server/hostname'):
+            self.server_dialog.hostname = self.settings.value('server/hostname')
+            self.server_dialog.port = int(self.settings.value('server/port',9999))
+        
         self.on_source_label_linkActivated('dummy')
         self.gps_source_pick.setItemData(0,'system')
         self.gps_source_pick.setItemData(1,'simulate')
         self.gps_source_pick.setItemData(2,'server')
 
-        self.on_gps_source_pick_activated(0)
+        last_path = self.settings.value('source')
+        if last_path:
+            pick = self.gps_source_pick.findData(last_path)
+        else:
+            pick = 0
+
+        self.last_source = pick
+        self.gps_source_pick.setCurrentIndex(pick)
+        self.on_gps_source_pick_activated(pick,True)
+
+    def reset_mark(self):
+        self.mark = None
+        self.mark_pos = None
+
+        self.mark_easting.clear()
+        self.mark_northing.clear()
+        self.mark_bearing.clear()
+        self.mark_distance.clear()
+        self.mark_elevation.clear()
+        self.mark_slope.clear()
+
+    def reset_start(self):
+        self.reset_mark()
+        self.mark_button.setEnabled(False)
+        
+        self.start = None
+        self.start_pos = None
+        self.utm_zone = None
+
+        self.start_easting.clear()
+        self.start_northing.clear()
+        self.start_bearing.clear()
+        self.start_distance.clear()
+        self.start_elevation.clear()
+        self.start_slope.clear()
 
 
     @Slot()
@@ -107,9 +231,8 @@ class PositionTest(QtWidgets.QWidget):
         self.start_pos = self.position
         self.start_altitude = self.altitude
 
-        self.mark = None
-        self.mark_pos = None
-        self.mark_button.setProperty('enabled', True)
+        self.reset_mark()
+        self.mark_button.setEnabled(True)
 
     @Slot()
     def on_mark_button_clicked(self):
@@ -143,8 +266,96 @@ class PositionTest(QtWidgets.QWidget):
     #    print (port_name)
 
     @Slot(int)
-    def on_gps_source_pick_activated(self, item_number):
+    def on_gps_source_pick_activated(self, item_number, dontask = False):
         path = self.gps_source_pick.itemData(item_number)
+
+        print (path)
+
+        if path == 'system':
+            self._cleanup_sources()
+            self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
+            if not self.nmea_source: return
+
+        elif path == 'simulate':
+            self._cleanup_sources()
+            self.nmea_logfile = QtCore.QFile('test2.nmea')
+            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
+            self.nmea_source.setDevice(self.nmea_logfile)
+            self.nmea_source.setUpdateInterval(0)
+        elif path == 'server':
+            if not dontask:
+                # only ask for host and port if we're not resuming from
+                # last known settings
+                self.setEnabled(False)
+                self.server_dialog.setEnabled(True)
+                self.server_dialog.show()
+                result = self.server_dialog.exec()
+                self.server_dialog.hide()
+                self.setEnabled(True)
+
+                if not result:
+                    # reset selection to last one
+                    self.gps_source_pick.setCurrentIndex(item_number)
+                    return
+
+            hostname = self.server_dialog.hostname
+            port = self.server_dialog.port
+
+            self._cleanup_sources()
+            self.nmea_source = None
+            self.tcpSocket = QtNetwork.QTcpSocket(self)
+            self.tcpSocket.error.connect(self.tcp_error)
+            self.tcpSocket.connectToHost(hostname, port)
+
+            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
+            self.nmea_source.setDevice(self.tcpSocket)
+            self.nmea_source.setUpdateInterval(0)
+
+            self.settings.setValue('server/hostname', hostname)
+            self.settings.setValue('server/port', port)
+
+        else: #assume serial
+            if not dontask:
+                self.setEnabled(False)
+                self.speed_dialog.setEnabled(True)
+                self.speed_dialog.show()
+                result = self.speed_dialog.exec()
+                self.speed_dialog.hide()
+                self.setEnabled(True)
+                if not result:
+                    #reset to the last source
+                    self.gps_source_pick.setCurrentIndex(item_number)
+                    return
+
+            baud_rate = self.speed_dialog.speed
+
+            self._cleanup_sources()
+            self.nmea_source = None
+            self.serialport = QtSerialPort.QSerialPort(path,self)
+            self.serialport.setBaudRate(baud_rate,self.serialport.AllDirections)
+            self.serialport.setFlowControl(self.serialport.NoFlowControl)
+            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
+            self.nmea_source.setDevice(self.serialport)
+            self.nmea_source.setUpdateInterval(0)
+            self.settings.setValue('serial/baud',baud_rate)
+
+
+
+        self.latitude_disp.clear()
+        self.longitude_disp.clear()
+        self.altitude_disp.clear()
+        self.heading_disp.clear()
+        self.reset_start()
+        self.nmea_source.positionUpdated.connect(self.position_updated)
+        self.nmea_source.updateTimeout.connect(self.update_timeout)
+        self.nmea_source.startUpdates()
+        self.last_source = item_number
+
+        self.settings.setValue('source',path)
+
+        #todo clear mark and start
+
+    def _cleanup_sources(self):
         if self.nmea_source:
             del self.nmea_source
             self.nmea_source = None
@@ -164,52 +375,11 @@ class PositionTest(QtWidgets.QWidget):
             del self.serialport
             self.serialport = None
 
-        print (path)
-
-        if path == 'system':
-            self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
-            if not self.nmea_source: return
-
-        elif path == 'simulate':
-            self.nmea_logfile = QtCore.QFile('test2.nmea')
-            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
-            self.nmea_source.setDevice(self.nmea_logfile)
-            self.nmea_source.setUpdateInterval(0)
-        elif path == 'server':
-            self.nmea_source = None
-            self.tcpSocket = QtNetwork.QTcpSocket(self)
-            self.tcpSocket.error.connect(self.tcp_error)
-            self.tcpSocket.connectToHost('ltfrover.lan', 9001)
-            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
-            self.nmea_source.setDevice(self.tcpSocket)
-            self.nmea_source.setUpdateInterval(0)
-        else: #assume serial
-            #TODO: ask for baud rate, store in settings
-            self.nmea_source = None
-            self.serialport = QtSerialPort.QSerialPort(path,self)
-            self.serialport.setBaudRate(115200,self.serialport.AllDirections)
-            self.serialport.setFlowControl(self.serialport.NoFlowControl)
-            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
-            self.nmea_source.setDevice(self.serialport)
-            self.nmea_source.setUpdateInterval(0)
-
-
-
-        self.latitude_disp.clear()
-        self.longitude_disp.clear()
-        self.altitude_disp.clear()
-        self.heading_disp.clear()
-        self.nmea_source.positionUpdated.connect(self.position_updated)
-        self.nmea_source.updateTimeout.connect(self.update_timeout)
-        self.nmea_source.startUpdates()
-
-        #todo clear mark and start
-
-
     @Slot(QtNetwork.QAbstractSocket.SocketError)
     def tcp_error(self, socketerror):
-        print ("Socket erred out.")
-        print (socketerror)
+        QtWidgets.QMessageBox.critical(self, 'Could not connect to host','Could not establish a TCP/IP connection to the GPS unit.  Please make sure the host or IP address and port number are correct.',QtWidgets.QMessageBox.Ok)
+        self.gps_source_pick.setCurrentIndex(0)
+        self.on_gps_source_pick_activated(0)
 
     @Slot(bool)
     def on_units_metres_toggled(self, state):
@@ -356,9 +526,6 @@ class PositionTest(QtWidgets.QWidget):
                         slope_angle = math.degrees(math.atan(slope_percent))
                         self.mark_slope.setText(u"{:.1%} or {:.1f}\u00b0".format(slope_percent,
                                                                                  slope_angle))
-     
-
-
 
     @Slot()
     def update_timeout(self):
@@ -371,13 +538,16 @@ class PositionTest(QtWidgets.QWidget):
 if __name__ == "__main__":
     import signal
     app = QtWidgets.QApplication(sys.argv)
-    #t = PositionTest(QtPositioning.QNmeaPositionInfoSource.RealTimeMode, nmea, 500)
-    t = PositionTest()
+
+    QtCore.QCoreApplication.setOrganizationName("Simple Survey")
+    QtCore.QCoreApplication.setApplicationName("Simple Survey")
 
     def ctrl_break(signum, frame):
         t.close()
 
     signal.signal(signal.SIGINT, ctrl_break)
+
+    t = SimpleSurveyGui()
     t.setWindowTitle('Simple Survey')
     t.show()
     app.exec_()
