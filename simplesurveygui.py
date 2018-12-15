@@ -63,6 +63,8 @@ class PositionTest(QtWidgets.QWidget):
 
         self.nmea_source = None
         self.nmea_logfile = None
+        self.serialport = None
+        self.tcpSocket = None
 
         #nmea_source.error.connect(self.error)
 
@@ -81,6 +83,7 @@ class PositionTest(QtWidgets.QWidget):
         self.on_source_label_linkActivated('dummy')
         self.gps_source_pick.setItemData(0,'system')
         self.gps_source_pick.setItemData(1,'simulate')
+        self.gps_source_pick.setItemData(2,'server')
 
         self.on_gps_source_pick_activated(0)
 
@@ -150,23 +153,41 @@ class PositionTest(QtWidgets.QWidget):
             del self.nmea_logfile
             self.nmea_logfile = None
 
+        if self.tcpSocket:
+            self.tcpSocket.close()
+            del self.tcpSocket
+
+        if self.serialport:
+            self.serialport.close()
+            del self.serialport
+
+        print (path)
+
         if path == 'system':
             self.nmea_source = QtPositioning.QGeoPositionInfoSource.createDefaultSource(self)
+            if not self.nmea_source: return
 
         elif path == 'simulate':
-            print ('simulating')
             self.nmea_logfile = QtCore.QFile('test2.nmea')
             self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.SimulationMode)
             self.nmea_source.setDevice(self.nmea_logfile)
             self.nmea_source.setUpdateInterval(0)
-        else:
-            #assume serial port
+        elif path == 'server':
             self.nmea_source = None
             self.tcpSocket = QtNetwork.QTcpSocket(self)
             self.tcpSocket.error.connect(self.tcp_error)
             self.tcpSocket.connectToHost('ltfrover.lan', 9001)
             self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
             self.nmea_source.setDevice(self.tcpSocket)
+            self.nmea_source.setUpdateInterval(0)
+        else: #assume serial
+            #TODO: ask for baud rate, store in settings
+            self.nmea_source = None
+            self.serialport = QtSerialPort.QSerialPort(path,self)
+            self.serialport.setBaudRate(115200,self.serialport.AllDirections)
+            self.serialport.setFlowControl(self.serialport.NoFlowControl)
+            self.nmea_source = QtPositioning.QNmeaPositionInfoSource(QtPositioning.QNmeaPositionInfoSource.RealTimeMode)
+            self.nmea_source.setDevice(self.serialport)
             self.nmea_source.setUpdateInterval(0)
 
 
@@ -178,6 +199,9 @@ class PositionTest(QtWidgets.QWidget):
         self.nmea_source.positionUpdated.connect(self.position_updated)
         self.nmea_source.updateTimeout.connect(self.update_timeout)
         self.nmea_source.startUpdates()
+
+        #todo clear mark and start
+
 
     @Slot(QtNetwork.QAbstractSocket.SocketError)
     def tcp_error(self, socketerror):
