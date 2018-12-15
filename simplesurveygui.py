@@ -130,7 +130,7 @@ class PositionTest(QtWidgets.QWidget):
     def on_source_label_linkActivated(self, link):
         #print ("clicked on link %s" % link)
         ports = QtSerialPort.QSerialPortInfo.availablePorts()
-        for x in range(2,self.gps_source_pick.count()):
+        for x in range(3,self.gps_source_pick.count()):
             self.gps_source_pick.removeItem(x)
 
         self.serial_ports = {}
@@ -147,6 +147,7 @@ class PositionTest(QtWidgets.QWidget):
         path = self.gps_source_pick.itemData(item_number)
         if self.nmea_source:
             del self.nmea_source
+            self.nmea_source = None
 
         if self.nmea_logfile:
             self.nmea_logfile.close()
@@ -156,10 +157,12 @@ class PositionTest(QtWidgets.QWidget):
         if self.tcpSocket:
             self.tcpSocket.close()
             del self.tcpSocket
+            self.tcpSocket = None
 
         if self.serialport:
             self.serialport.close()
             del self.serialport
+            self.serialport = None
 
         print (path)
 
