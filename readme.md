@@ -19,8 +19,9 @@ Simple Survey requires the following:
 * PyQt5 for Python 3 installed. 
 
 Simple Survey should work on any platform that supports PyQt5.  Currently
-PySide2 does not expose the QtPositioning API, or that would be supported as an
-alternative to PyQt5.
+PySide2 does not yet wrap the QtSerialPort API, or that would be supported
+as an alternative to PyQt5.
+
 ## How to use
 You'll need an RTK GPS receiver capable of transmitting NMEA sentences by
 serial or TCP/IP connection to the laptop this program will run on.  RMC and
