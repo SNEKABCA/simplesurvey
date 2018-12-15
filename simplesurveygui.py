@@ -29,7 +29,6 @@ def footinch(metres):
     else: sign = ''
 
     feet = int(metres * 39.3701 / 12)
-    print (feet)
     if feet:
         feet = "%d' " % feet
     else:
@@ -37,7 +36,7 @@ def footinch(metres):
 
     inches = int(metres * 39.3701) % 12
     if inches:
-        inches = '%d' % inches
+        inches = '%d_' % inches
     else:
         inches = ''
 
@@ -45,7 +44,7 @@ def footinch(metres):
     
     if decimal:
         gcd = fractions.gcd(decimal, 16)
-        frac = "-%d/%d" % (decimal / gcd, 16/ gcd)
+        frac = "%d/%d" % (decimal / gcd, 16/ gcd)
     else:
         frac = ''
 
@@ -151,12 +150,16 @@ class SimpleSurveyGui(QtWidgets.QWidget):
         self.mark_pos = None   #QPositionInfo
         self.altitude = None
         self.start_altitude = None
-        self.metric = True
+
         self.position = None
         
         self.settings = sssettings.SSSettings()
 
         load_ui(SIMPLE_SURVEY_UI, self)
+
+        self.metric = (self.settings.value('metric','true') == 'true')
+        if not self.metric:
+            self.units_feet.setProperty('checked',True)
 
 
         self.speed_dialog = SerialBaudDialog(self)
@@ -385,10 +388,12 @@ class SimpleSurveyGui(QtWidgets.QWidget):
     @Slot(bool)
     def on_units_metres_toggled(self, state):
         self.metric = state
+        self.settings.setValue('metric',state)
 
     @Slot(bool)
     def on_units_feet_toggled(self, state):
         self.metric = not state
+        self.settings.setValue('metric',not state)
 
     @Slot(QtPositioning.QGeoPositionInfo)
     def position_updated(self, position_info):
