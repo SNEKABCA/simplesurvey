@@ -4,7 +4,13 @@ This program is a simple GUI that works with NMEA GPS data sources to allow simp
 ##License
 Simple Survey is licensed under the terms of the GNU GPLv3.
 ##Requirements
-Simple Survey requires Python 3.4 or greater, and PyQt5 for Python 3 installed. Should work on any platform that supports PyQt5.  Currently PySide2 does not expose the QtPositioning API.
+Simple Survey requires the following:
+
+* [utm](https://pypi.org/project/utm/) library is required.
+* Python 3.4 or greater
+* PyQt5 for Python 3 installed. 
+
+Simple Survey should work on any platform that supports PyQt5.  Currently PySide2 does not expose the QtPositioning API, or that would be supported as an alternative to PyQt5.
 ##How to use
 You'll need an RTK GPS receiver capable of transmitting NMEA sentences by serial or TCP/IP connection to the laptop this program will run on.  RMC and GGA sentences are all you need. If your GPS receiver is mounted on a tripod, a plumb bob hanging from the underside can help you accurately measure a position.
 
