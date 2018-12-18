@@ -68,7 +68,10 @@ def get_zone_number(lat, lon):
         elif lon <= 33: return 35
         elif lon <= 42: return 37
 
-    return (lon + 180) / 6 + 1
+    # to get a pseudo zone centered on this longitude, we
+    # leave the decimal bits in and subtract 0.5.  This seems
+    # to give us an accurate grid centered on our present location
+    return (lon + 180) / 6 + 1 - 0.5
 
 class SerialBaudDialog(QtWidgets.QDialog):
     def __init__(self, *args, **kwargs):
